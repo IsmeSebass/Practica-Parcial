@@ -1,0 +1,20 @@
+# Compilacion Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.github/modernize/
+.settings/
+.project
+.classpath
+bin/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
