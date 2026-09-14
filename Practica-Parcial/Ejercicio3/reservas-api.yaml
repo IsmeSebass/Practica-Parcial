@@ -1,0 +1,381 @@
+openapi: 3.0.3
+info:
+  title: API de Reservas de Hotel
+  description: |
+    API REST para la administración de las reservas de un hotel.
+    Permite crear, consultar, actualizar y cancelar reservas de habitaciones.
+  version: 1.0.0
+  contact:
+    name: Equipo de Desarrollo - Hoteleria
+    email: soporte@hotel.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8083
+    description: Entorno local de desarrollo
+
+tags:
+  - name: Reservas
+    description: Operaciones sobre las reservas de habitaciones
+
+paths:
+  /api/v1/reservas:
+    post:
+      tags: [Reservas]
+      summary: Crear una reserva
+      description: >
+        Registra una nueva reserva. La fecha de salida debe ser posterior a la de
+        entrada y la habitación no puede tener otra reserva vigente que se solape.
+      operationId: crearReserva
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservaRequest'
+            examples:
+              ejemplo:
+                value:
+                  nombreCliente: "Maria Fernandez"
+                  habitacion: "301-A"
+                  fechaEntrada: "2026-10-01"
+                  fechaSalida: "2026-10-05"
+                  estado: "CONFIRMADA"
+      responses:
+        '201':
+          description: Reserva creada correctamente
+          headers:
+            Location:
+              description: URI del recurso creado
+              schema:
+                type: string
+                example: /api/v1/reservas/1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaResponse'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '409':
+          $ref: '#/components/responses/Conflicto'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+    get:
+      tags: [Reservas]
+      summary: Consultar reservas
+      description: >
+        Devuelve la lista de reservas registradas. Admite filtros opcionales por
+        estado y por habitación. Si no hay coincidencias devuelve una lista vacía.
+      operationId: consultarReservas
+      parameters:
+        - name: estado
+          in: query
+          required: false
+          description: Filtra por el estado de la reserva
+          schema:
+            $ref: '#/components/schemas/EstadoReserva'
+        - name: habitacion
+          in: query
+          required: false
+          description: Filtra por el número de habitación
+          schema:
+            type: string
+            example: "301-A"
+      responses:
+        '200':
+          description: Lista de reservas obtenida correctamente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReservaResponse'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/reservas/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Identificador único de la reserva
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 1
+    get:
+      tags: [Reservas]
+      summary: Consultar reserva por id
+      description: Devuelve el detalle de una reserva a partir de su identificador.
+      operationId: consultarReservaPorId
+      responses:
+        '200':
+          description: Reserva encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaResponse'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+    put:
+      tags: [Reservas]
+      summary: Actualizar reserva
+      description: >
+        Actualiza por completo los datos de una reserva existente.
+        No se permite actualizar una reserva ya cancelada.
+      operationId: actualizarReserva
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservaRequest'
+            examples:
+              ejemplo:
+                value:
+                  nombreCliente: "Maria Fernandez"
+                  habitacion: "302-B"
+                  fechaEntrada: "2026-10-02"
+                  fechaSalida: "2026-10-06"
+                  estado: "CONFIRMADA"
+      responses:
+        '200':
+          description: Reserva actualizada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaResponse'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/Conflicto'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/reservas/{id}/cancelacion:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Identificador único de la reserva a cancelar
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 1
+    post:
+      tags: [Reservas]
+      summary: Cancelar reserva
+      description: >
+        Cancela una reserva cambiando su estado a CANCELADA. La reserva no se
+        elimina del sistema para conservar el historial. Una reserva ya cancelada
+        o finalizada no puede volver a cancelarse.
+      operationId: cancelarReserva
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelacionRequest'
+            examples:
+              ejemplo:
+                value:
+                  motivo: "El cliente cambio de fechas de viaje"
+      responses:
+        '200':
+          description: Reserva cancelada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaResponse'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          description: La reserva no se encuentra en un estado cancelable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: "2026-09-18T10:15:30"
+                status: 409
+                error: "Conflict"
+                message: "La reserva 1 ya se encuentra CANCELADA"
+                path: "/api/v1/reservas/1/cancelacion"
+                detalles: []
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+components:
+  schemas:
+    EstadoReserva:
+      type: string
+      description: |
+        Estado de la reserva:
+          * `CONFIRMADA` - reserva vigente, aun no inicia la estadia
+          * `EN_CURSO`   - el cliente se encuentra hospedado
+          * `FINALIZADA` - la estadia concluyo
+          * `CANCELADA`  - la reserva fue anulada
+      enum: [CONFIRMADA, EN_CURSO, FINALIZADA, CANCELADA]
+      example: CONFIRMADA
+
+    ReservaRequest:
+      type: object
+      description: Datos de entrada para crear o actualizar una reserva
+      required: [nombreCliente, habitacion, fechaEntrada, fechaSalida, estado]
+      properties:
+        nombreCliente:
+          type: string
+          minLength: 3
+          maxLength: 120
+          description: Nombre completo del cliente
+          example: "Maria Fernandez"
+        habitacion:
+          type: string
+          description: Identificador de la habitación. Formato numero-letra, ej. 301-A
+          pattern: "^[0-9]{3}-[A-Z]$"
+          example: "301-A"
+        fechaEntrada:
+          type: string
+          format: date
+          description: Fecha de check-in (ISO-8601). No puede ser anterior al día actual.
+          example: "2026-10-01"
+        fechaSalida:
+          type: string
+          format: date
+          description: Fecha de check-out (ISO-8601). Debe ser posterior a fechaEntrada.
+          example: "2026-10-05"
+        estado:
+          $ref: '#/components/schemas/EstadoReserva'
+
+    CancelacionRequest:
+      type: object
+      description: Información opcional asociada a la cancelación
+      properties:
+        motivo:
+          type: string
+          maxLength: 200
+          description: Motivo por el cual se cancela la reserva
+          example: "El cliente cambio de fechas de viaje"
+
+    ReservaResponse:
+      type: object
+      description: Representación de una reserva
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Identificador único generado por el sistema
+          example: 1
+        nombreCliente:
+          type: string
+          example: "Maria Fernandez"
+        habitacion:
+          type: string
+          example: "301-A"
+        fechaEntrada:
+          type: string
+          format: date
+          example: "2026-10-01"
+        fechaSalida:
+          type: string
+          format: date
+          example: "2026-10-05"
+        estado:
+          $ref: '#/components/schemas/EstadoReserva'
+        cantidadNoches:
+          type: integer
+          format: int32
+          description: Número de noches calculado entre entrada y salida
+          example: 4
+
+    ErrorResponse:
+      type: object
+      description: Estructura estándar de error de la API
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-09-18T10:15:30"
+        status:
+          type: integer
+          format: int32
+          example: 404
+        error:
+          type: string
+          example: "Not Found"
+        message:
+          type: string
+          example: "No existe una reserva con el id 99"
+        path:
+          type: string
+          example: "/api/v1/reservas/99"
+        detalles:
+          type: array
+          description: Detalle por campo cuando la validación falla
+          items:
+            type: string
+          example: ["fechaSalida: debe ser posterior a fechaEntrada"]
+
+  responses:
+    SolicitudInvalida:
+      description: La solicitud contiene datos inválidos o mal formados
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-09-18T10:15:30"
+            status: 400
+            error: "Bad Request"
+            message: "Error de validacion en los datos enviados"
+            path: "/api/v1/reservas"
+            detalles: ["fechaSalida: debe ser posterior a fechaEntrada"]
+    NoEncontrado:
+      description: El recurso solicitado no existe
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-09-18T10:15:30"
+            status: 404
+            error: "Not Found"
+            message: "No existe una reserva con el id 99"
+            path: "/api/v1/reservas/99"
+            detalles: []
+    Conflicto:
+      description: La habitación ya tiene una reserva vigente en el rango de fechas
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-09-18T10:15:30"
+            status: 409
+            error: "Conflict"
+            message: "La habitacion 301-A ya tiene una reserva entre 2026-10-01 y 2026-10-05"
+            path: "/api/v1/reservas"
+            detalles: []
+    ErrorInterno:
+      description: Error inesperado del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-09-18T10:15:30"
+            status: 500
+            error: "Internal Server Error"
+            message: "Ocurrio un error inesperado. Contacte al administrador."
+            path: "/api/v1/reservas"
+            detalles: []
