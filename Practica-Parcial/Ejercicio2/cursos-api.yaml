@@ -1,0 +1,340 @@
+openapi: 3.0.3
+info:
+  title: API de Cursos Universitarios
+  description: |
+    API REST para la administración de los cursos de una universidad.
+    Permite crear, consultar, actualizar y eliminar cursos de la oferta académica.
+  version: 1.0.0
+  contact:
+    name: Equipo de Desarrollo - Registro Academico
+    email: soporte@universidad.edu
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8082
+    description: Entorno local de desarrollo
+
+tags:
+  - name: Cursos
+    description: Operaciones sobre la oferta académica de cursos
+
+paths:
+  /api/v1/cursos:
+    post:
+      tags: [Cursos]
+      summary: Crear un curso
+      description: Registra un nuevo curso en la oferta académica.
+      operationId: crearCurso
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CursoRequest'
+            examples:
+              ejemplo:
+                value:
+                  nombre: "Programacion Orientada a Objetos"
+                  codigo: "INF-201"
+                  creditos: 4
+                  estado: "ACTIVO"
+      responses:
+        '201':
+          description: Curso creado correctamente
+          headers:
+            Location:
+              description: URI del recurso creado
+              schema:
+                type: string
+                example: /api/v1/cursos/1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CursoResponse'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '409':
+          $ref: '#/components/responses/Conflicto'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+    get:
+      tags: [Cursos]
+      summary: Consultar cursos
+      description: >
+        Devuelve la lista de cursos registrados. Admite filtros opcionales por
+        estado y por número de créditos. Si no hay coincidencias devuelve una lista vacía.
+      operationId: consultarCursos
+      parameters:
+        - name: estado
+          in: query
+          required: false
+          description: Filtra por el estado del curso
+          schema:
+            $ref: '#/components/schemas/EstadoCurso'
+        - name: creditos
+          in: query
+          required: false
+          description: Filtra por cantidad exacta de créditos
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 12
+            example: 4
+      responses:
+        '200':
+          description: Lista de cursos obtenida correctamente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CursoResponse'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/cursos/codigo/{codigo}:
+    get:
+      tags: [Cursos]
+      summary: Consultar curso por código
+      description: Devuelve el curso identificado por su código académico único.
+      operationId: consultarCursoPorCodigo
+      parameters:
+        - name: codigo
+          in: path
+          required: true
+          description: Código académico del curso
+          schema:
+            type: string
+            pattern: "^[A-Z]{2,4}-[0-9]{3}$"
+            example: "INF-201"
+      responses:
+        '200':
+          description: Curso encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CursoResponse'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/v1/cursos/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Identificador único del curso
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 1
+    get:
+      tags: [Cursos]
+      summary: Consultar curso por id
+      description: Devuelve el detalle de un curso a partir de su identificador.
+      operationId: consultarCursoPorId
+      responses:
+        '200':
+          description: Curso encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CursoResponse'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+    put:
+      tags: [Cursos]
+      summary: Actualizar curso
+      description: Actualiza por completo los datos de un curso existente.
+      operationId: actualizarCurso
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CursoRequest'
+            examples:
+              ejemplo:
+                value:
+                  nombre: "Programacion Orientada a Objetos II"
+                  codigo: "INF-201"
+                  creditos: 5
+                  estado: "ACTIVO"
+      responses:
+        '200':
+          description: Curso actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CursoResponse'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/Conflicto'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+    delete:
+      tags: [Cursos]
+      summary: Eliminar curso
+      description: Elimina de forma definitiva un curso de la oferta académica.
+      operationId: eliminarCurso
+      responses:
+        '204':
+          description: Curso eliminado correctamente (sin contenido)
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+components:
+  schemas:
+    EstadoCurso:
+      type: string
+      description: |
+        Estado del curso dentro de la oferta académica:
+          * `ACTIVO`     - disponible para inscripcion
+          * `INACTIVO`   - temporalmente fuera de oferta
+          * `CERRADO`    - cupo completo, no admite inscripciones
+      enum: [ACTIVO, INACTIVO, CERRADO]
+      example: ACTIVO
+
+    CursoRequest:
+      type: object
+      description: Datos de entrada para crear o actualizar un curso
+      required: [nombre, codigo, creditos, estado]
+      properties:
+        nombre:
+          type: string
+          minLength: 3
+          maxLength: 120
+          description: Nombre del curso
+          example: "Programacion Orientada a Objetos"
+        codigo:
+          type: string
+          description: Código académico único. Formato letras-numero, ej. INF-201
+          pattern: "^[A-Z]{2,4}-[0-9]{3}$"
+          example: "INF-201"
+        creditos:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 12
+          description: Número de créditos académicos del curso
+          example: 4
+        estado:
+          $ref: '#/components/schemas/EstadoCurso'
+
+    CursoResponse:
+      type: object
+      description: Representación de un curso
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Identificador único generado por el sistema
+          example: 1
+        nombre:
+          type: string
+          example: "Programacion Orientada a Objetos"
+        codigo:
+          type: string
+          example: "INF-201"
+        creditos:
+          type: integer
+          format: int32
+          example: 4
+        estado:
+          $ref: '#/components/schemas/EstadoCurso'
+
+    ErrorResponse:
+      type: object
+      description: Estructura estándar de error de la API
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-09-18T10:15:30"
+        status:
+          type: integer
+          format: int32
+          example: 404
+        error:
+          type: string
+          example: "Not Found"
+        message:
+          type: string
+          example: "No existe un curso con el codigo INF-999"
+        path:
+          type: string
+          example: "/api/v1/cursos/codigo/INF-999"
+        detalles:
+          type: array
+          description: Detalle por campo cuando la validación falla
+          items:
+            type: string
+          example: ["creditos: debe ser mayor o igual a 1"]
+
+  responses:
+    SolicitudInvalida:
+      description: La solicitud contiene datos inválidos o mal formados
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-09-18T10:15:30"
+            status: 400
+            error: "Bad Request"
+            message: "Error de validacion en los datos enviados"
+            path: "/api/v1/cursos"
+            detalles: ["codigo: debe cumplir el formato XXX-000"]
+    NoEncontrado:
+      description: El recurso solicitado no existe
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-09-18T10:15:30"
+            status: 404
+            error: "Not Found"
+            message: "No existe un curso con el id 99"
+            path: "/api/v1/cursos/99"
+            detalles: []
+    Conflicto:
+      description: El recurso entra en conflicto con otro existente (código duplicado)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-09-18T10:15:30"
+            status: 409
+            error: "Conflict"
+            message: "Ya existe un curso registrado con el codigo INF-201"
+            path: "/api/v1/cursos"
+            detalles: []
+    ErrorInterno:
+      description: Error inesperado del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-09-18T10:15:30"
+            status: 500
+            error: "Internal Server Error"
+            message: "Ocurrio un error inesperado. Contacte al administrador."
+            path: "/api/v1/cursos"
+            detalles: []
